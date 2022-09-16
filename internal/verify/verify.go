@@ -25,6 +25,7 @@ import (
 	"io"
 
 	"github.com/google/go-containerregistry/internal/and"
+	"github.com/google/go-containerregistry/pkg/logs"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 )
 
@@ -56,15 +57,17 @@ func (vc *verifyReader) Read(b []byte) (int, error) {
 	vc.gotSize += int64(n)
 	if err == io.EOF {
 		if vc.wantSize != SizeUnknown && vc.gotSize != vc.wantSize {
-			return n, fmt.Errorf("error verifying size; got %d, want %d", vc.gotSize, vc.wantSize)
+			logs.Debug.Printf("Read %d bytes, expected %d. Expected.", vc.gotSize, vc.wantSize)
+			//return n, fmt.Errorf("error verifying size; got %d, want %d", vc.gotSize, vc.wantSize)
 		}
 		got := hex.EncodeToString(vc.hasher.Sum(nil))
 		if want := vc.expected.Hex; got != want {
-			return n, Error{
-				got:     vc.expected.Algorithm + ":" + got,
-				want:    vc.expected,
-				gotSize: vc.gotSize,
-			}
+			logs.Debug.Printf("checksum doesn't match. Expected.")
+			// return n, Error{
+			// 	got:     vc.expected.Algorithm + ":" + got,
+			// 	want:    vc.expected,
+			// 	gotSize: vc.gotSize,
+			// }
 		}
 	}
 	return n, err

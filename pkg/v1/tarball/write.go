@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"sort"
 	"strings"
@@ -99,6 +100,9 @@ func MultiRefWrite(refToImage map[name.Reference]v1.Image, w io.Writer, opts ...
 	}
 
 	size, mBytes, err := getSizeAndManifest(refToImage)
+
+	log.Printf("Expected compressed size: %d", size)
+
 	if err != nil {
 		return sendUpdateReturn(o, err)
 	}
@@ -364,17 +368,18 @@ func dedupRefToImage(refToImage map[name.Reference]v1.Image) map[v1.Image][]stri
 
 // writeTarEntry writes a file to the provided writer with a corresponding tar header
 func writeTarEntry(tf *tar.Writer, path string, r io.Reader, size int64) error {
-	hdr := &tar.Header{
-		Mode:     0644,
-		Typeflag: tar.TypeReg,
-		Size:     size,
-		Name:     path,
-	}
-	if err := tf.WriteHeader(hdr); err != nil {
-		return err
-	}
-	_, err := io.Copy(tf, r)
-	return err
+	// hdr := &tar.Header{
+	// 	Mode:     0644,
+	// 	Typeflag: tar.TypeReg,
+	// 	Size:     size,
+	// 	Name:     path,
+	// }
+	log.Printf("Dryrun writing %s (%d bytes)", path, size)
+	// if err := tf.WriteHeader(hdr); err != nil {
+	// 	return err
+	// }
+	// _, err := io.Copy(tf, r)
+	return nil
 }
 
 // ComputeManifest get the manifest.json that will be written to the tarball

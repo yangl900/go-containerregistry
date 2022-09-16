@@ -142,6 +142,9 @@ func makeOptions(target authn.Resource, opts ...Option) (*options, error) {
 			o.transport = transport.NewLogger(o.transport)
 		}
 
+		// add redirect logger
+		o.transport = transport.NewRedirectLogger(o.transport)
+
 		// Wrap the transport in something that can retry network flakes.
 		o.transport = transport.NewRetry(o.transport)
 

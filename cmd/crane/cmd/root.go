@@ -15,11 +15,12 @@ package cmd
 import (
 	"crypto/tls"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 
-	"github.com/docker/cli/cli/config"
 	"github.com/google/go-containerregistry/internal/cmd"
 	"github.com/google/go-containerregistry/pkg/crane"
 	"github.com/google/go-containerregistry/pkg/logs"
@@ -41,6 +42,7 @@ func New(use, short string, options []crane.Option) *cobra.Command {
 	insecure := false
 	ndlayers := false
 	platform := &platformValue{}
+	registry := ""
 
 	root := &cobra.Command{
 		Use:               use,
@@ -69,25 +71,39 @@ func New(use, short string, options []crane.Option) *cobra.Command {
 			}
 
 			options = append(options, crane.WithPlatform(platform.platform))
-
-			transport := remote.DefaultTransport.Clone()
-			transport.TLSClientConfig = &tls.Config{
+			// Setup HTTPS client
+			tlsConfig := &tls.Config{
 				InsecureSkipVerify: insecure, //nolint: gosec
 			}
 
-			var rt http.RoundTripper = transport
-			// Add any http headers if they are set in the config file.
-			cf, err := config.Load(os.Getenv("DOCKER_CONFIG"))
-			if err != nil {
-				logs.Debug.Printf("failed to read config file: %v", err)
-			} else if len(cf.HTTPHeaders) != 0 {
-				rt = &headerTransport{
-					inner:       rt,
-					httpHeaders: cf.HTTPHeaders,
+			if registry != "" {
+				dirname, err := os.UserHomeDir()
+				if err != nil {
+					log.Fatal(err)
 				}
+
+				certFile := path.Join(dirname, fmt.Sprintf(".docker/certs.d/%s/client.cert", registry))
+				keyFile := path.Join(dirname, fmt.Sprintf(".docker/certs.d/%s/client.key", registry))
+
+				// Load client cert
+				cert, err := tls.LoadX509KeyPair(certFile, keyFile)
+				if err != nil {
+					log.Fatal(err)
+				}
+
+				// Setup HTTPS client
+				tlsConfig.Certificates = []tls.Certificate{cert}
+				tlsConfig.BuildNameToCertificate()
 			}
 
-			options = append(options, crane.WithTransport(rt))
+			transport := remote.DefaultTransport.Clone()
+			transport.TLSClientConfig = tlsConfig
+
+			var ht http.RoundTripper = &headerTransport{
+				inner: transport,
+			}
+
+			options = append(options, crane.WithTransport(ht))
 		},
 	}
 
@@ -121,6 +137,7 @@ func New(use, short string, options []crane.Option) *cobra.Command {
 	root.PersistentFlags().BoolVar(&insecure, "insecure", false, "Allow image references to be fetched without TLS")
 	root.PersistentFlags().BoolVar(&ndlayers, "allow-nondistributable-artifacts", false, "Allow pushing non-distributable (foreign) layers")
 	root.PersistentFlags().Var(platform, "platform", "Specifies the platform in the form os/arch[/variant][:osversion] (e.g. linux/amd64).")
+	root.PersistentFlags().StringVar(&registry, "registry", "", "Specifies the registry credentials to load.")
 
 	return root
 }

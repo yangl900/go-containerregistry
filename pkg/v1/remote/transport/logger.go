@@ -16,8 +16,10 @@ package transport
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"net/http/httputil"
+	"net/url"
 	"time"
 
 	"github.com/google/go-containerregistry/internal/redact"
@@ -28,10 +30,46 @@ type logTransport struct {
 	inner http.RoundTripper
 }
 
+type redirectLogTransport struct {
+	inner http.RoundTripper
+}
+
+func NewRedirectLogger(inner http.RoundTripper) http.RoundTripper {
+	return &redirectLogTransport{inner}
+}
+
 // NewLogger returns a transport that logs requests and responses to
 // github.com/google/go-containerregistry/pkg/logs.Debug.
 func NewLogger(inner http.RoundTripper) http.RoundTripper {
 	return &logTransport{inner}
+}
+
+func (t *redirectLogTransport) RoundTrip(in *http.Request) (out *http.Response, err error) {
+	out, err = t.inner.RoundTrip(in)
+	if out != nil {
+		if out.StatusCode == 307 {
+			urlStr := out.Header.Get("Location")
+			s3url, err := url.Parse(urlStr)
+			if err != nil {
+				log.Printf("Failed to parse Location header %s: %v", urlStr, err)
+			}
+
+			q := s3url.Query()
+			q.Del("X-Amz-Signature")
+			q.Del("X-Amz-Credential")
+			q.Del("X-Amz-Algorithm")
+			q.Del("X-Amz-Date")
+			q.Del("X-Amz-Expires")
+			q.Del("X-Amz-SignedHeaders")
+
+			s3url.RawQuery = q.Encode()
+			log.Printf("Redirected to: %s\n", s3url.String())
+
+			out.StatusCode = 200
+			out.Header.Del("Location")
+		}
+	}
+	return out, err
 }
 
 func (t *logTransport) RoundTrip(in *http.Request) (out *http.Response, err error) {

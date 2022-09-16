@@ -382,9 +382,10 @@ func (f *fetcher) fetchBlob(ctx context.Context, size int64, h v1.Hash) (io.Read
 	if hsize := resp.ContentLength; hsize != -1 {
 		if size == verify.SizeUnknown {
 			size = hsize
-		} else if hsize != size {
-			return nil, fmt.Errorf("GET %s: Content-Length header %d does not match expected size %d", u.String(), hsize, size)
 		}
+		// } else if hsize != size {
+		// 	return nil, fmt.Errorf("GET %s: Content-Length header %d does not match expected size %d", u.String(), hsize, size)
+		// }
 	}
 
 	return verify.ReadCloser(resp.Body, size, h)
