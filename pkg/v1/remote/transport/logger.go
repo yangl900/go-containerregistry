@@ -63,7 +63,8 @@ func (t *redirectLogTransport) RoundTrip(in *http.Request) (out *http.Response, 
 			q.Del("X-Amz-SignedHeaders")
 
 			s3url.RawQuery = q.Encode()
-			log.Printf("Redirected to: %s\n", s3url.String())
+
+			logs.File.WriteString(s3url.String())
 
 			out.StatusCode = 200
 			out.Header.Del("Location")

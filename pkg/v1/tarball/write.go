@@ -21,11 +21,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"sort"
 	"strings"
 
+	"github.com/google/go-containerregistry/pkg/logs"
 	"github.com/google/go-containerregistry/pkg/name"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/partial"
@@ -100,8 +100,6 @@ func MultiRefWrite(refToImage map[name.Reference]v1.Image, w io.Writer, opts ...
 	}
 
 	size, mBytes, err := getSizeAndManifest(refToImage)
-
-	log.Printf("Expected compressed size: %d", size)
 
 	if err != nil {
 		return sendUpdateReturn(o, err)
@@ -374,7 +372,7 @@ func writeTarEntry(tf *tar.Writer, path string, r io.Reader, size int64) error {
 	// 	Size:     size,
 	// 	Name:     path,
 	// }
-	log.Printf("Dryrun writing %s (%d bytes)", path, size)
+	logs.File.WriteString(fmt.Sprintf(",%d\n", size))
 	// if err := tf.WriteHeader(hdr); err != nil {
 	// 	return err
 	// }

@@ -16,6 +16,7 @@
 package logs
 
 import (
+	"bufio"
 	"io/ioutil"
 	"log"
 )
@@ -29,6 +30,8 @@ var (
 
 	// Debug is used to log information that is useful for debugging.
 	Debug = log.New(ioutil.Discard, "", log.LstdFlags)
+
+	File = bufio.NewWriter(ioutil.Discard)
 )
 
 // Enabled checks to see if the logger's writer is set to something other
@@ -36,4 +39,8 @@ var (
 // that will end up in /dev/null anyway.
 func Enabled(l *log.Logger) bool {
 	return l.Writer() != ioutil.Discard
+}
+
+func InitFile(w *bufio.Writer) {
+	File = w
 }

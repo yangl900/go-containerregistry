@@ -22,22 +22,17 @@ import (
 	"strings"
 
 	"github.com/google/go-containerregistry/pkg/crane"
-	"github.com/google/go-containerregistry/pkg/logs"
-	"github.com/google/go-containerregistry/pkg/name"
-	v1 "github.com/google/go-containerregistry/pkg/v1"
-	"github.com/google/go-containerregistry/pkg/v1/remote"
 	pb "github.com/schollz/progressbar/v3"
 	"github.com/spf13/cobra"
 )
 
-// NewCmdDump creates a new cobra.Command for the repos subcommand.
-func NewCmdDump(options *[]crane.Option) *cobra.Command {
+// NewCmdDumpTags creates a new cobra.Command for the repos subcommand.
+func NewCmdDumpTags(options *[]crane.Option) *cobra.Command {
 	var input string
 	var output string
-	var drypull bool
 	dumpCmd := cobra.Command{
-		Use:   "dump",
-		Short: "Dump all image blob URIs of entire repository",
+		Use:   "dumptags",
+		Short: "Dump all image tags of entire repository",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) error {
 			reg := args[0]
@@ -80,10 +75,6 @@ func NewCmdDump(options *[]crane.Option) *cobra.Command {
 				}
 				for _, tag := range tags {
 					w.WriteString(fmt.Sprintf("%s,%s,%s\n", reg, repo, tag))
-
-					if drypull {
-						drypullImage(reg, repo, tag, options)
-					}
 				}
 				if err := w.Flush(); err != nil {
 					return fmt.Errorf("flushing output: %w", err)
@@ -95,36 +86,6 @@ func NewCmdDump(options *[]crane.Option) *cobra.Command {
 
 	dumpCmd.Flags().StringVar(&input, "input", "", "Input file with list of images to dump")
 	dumpCmd.Flags().StringVar(&output, "output", "", "Output file to dump")
-	dumpCmd.Flags().BoolVar(&drypull, "drypull", false, "Drypull all images")
 
 	return &dumpCmd
-}
-
-func drypullImage(reg string, repo string, tag string, options *[]crane.Option) error {
-	imageMap := map[string]v1.Image{}
-	o := crane.GetOptions(*options...)
-	src := fmt.Sprintf("%s/%s:%s", reg, repo, tag)
-
-	logs.Debug.Printf("drypulling %s", src)
-	ref, err := name.ParseReference(src)
-	if err != nil {
-		return fmt.Errorf("parsing reference %q: %w", src, err)
-	}
-
-	rmt, err := remote.Get(ref, o.Remote...)
-	if err != nil {
-		return err
-	}
-
-	img, err := rmt.Image()
-	if err != nil {
-		return err
-	}
-	imageMap[src] = img
-
-	path := os.TempDir()
-	if err := crane.MultiSave(imageMap, path); err != nil {
-		return fmt.Errorf("saving tarball %s: %w", path, err)
-	}
-	return nil
 }
