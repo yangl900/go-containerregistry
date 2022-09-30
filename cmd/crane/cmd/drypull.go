@@ -19,7 +19,6 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"strings"
 	"sync"
 	"syscall"
 
@@ -77,7 +76,7 @@ func NewCmdDryPull(options *[]crane.Option) *cobra.Command {
 			wg := sync.WaitGroup{}
 			layers := map[string]bool{}
 			maplock := sync.Mutex{}
-			for i := 0; i < 200; i++ {
+			for i := 0; i < 20; i++ {
 				go startPulling(&wg, &layers, &maplock, w, input, options)
 			}
 
@@ -107,22 +106,16 @@ func NewCmdDryPull(options *[]crane.Option) *cobra.Command {
 
 func startPulling(wg *sync.WaitGroup, layers *map[string]bool, maplock *sync.Mutex, w *bufio.Writer, input <-chan string, options *[]crane.Option) {
 	for image := range input {
-		segments := strings.Split(image, ",")
-		if len(segments) != 3 {
-			fmt.Printf("invalid line %s\n", image)
-			wg.Done()
-			continue
-		}
-		if err := drypullImage(w, layers, maplock, segments[0], segments[1], segments[2], options); err != nil {
+		if err := drypullImage(w, layers, maplock, image, options); err != nil {
 			fmt.Printf("Failed drypulling image %s: %s\n", image, err)
 		}
 		wg.Done()
 	}
 }
 
-func drypullImage(w *bufio.Writer, layers *map[string]bool, maplock *sync.Mutex, reg string, repo string, tag string, options *[]crane.Option) error {
+func drypullImage(w *bufio.Writer, layers *map[string]bool, maplock *sync.Mutex, image string, options *[]crane.Option) error {
 	o := crane.GetOptions(*options...)
-	src := fmt.Sprintf("%s/%s:%s", reg, repo, tag)
+	src := image
 
 	logs.Debug.Printf("drypulling %s", src)
 	ref, err := name.ParseReference(src)
@@ -150,16 +143,19 @@ func drypullImage(w *bufio.Writer, layers *map[string]bool, maplock *sync.Mutex,
 		return fmt.Errorf("unable to get manifest for img %s: %w", src, err)
 	}
 
+	maplock.Lock()
+	defer maplock.Unlock()
+	path := fmt.Sprintf("docker/registry/v2/blobs/sha256/%s/%s", digest.Hex[:2], digest.Hex)
+	w.WriteString(fmt.Sprintf("%s,%s,%s,%s\n", image, digest.Hex, digest.Hex, path))
 	for _, l := range manifest.Layers {
-		maplock.Lock()
 		if _, ok := (*layers)[l.Digest.String()]; ok {
-			maplock.Unlock()
 			continue
 		}
 		(*layers)[l.Digest.String()] = true
-		maplock.Unlock()
-		logs.File.WriteString(fmt.Sprintf("%s,%s,%s,%s,%d\n", repo, tag, digest.String(), l.Digest, calculateSingleFileInTarSize(l.Size)))
+		path := fmt.Sprintf("docker/registry/v2/blobs/sha256/%s/%s", l.Digest.Hex[:2], l.Digest.Hex)
+		w.WriteString(fmt.Sprintf("%s,%s,%s,%s\n", image, digest.Hex, l.Digest.Hex, path))
 	}
+	w.Flush()
 
 	return nil
 }
