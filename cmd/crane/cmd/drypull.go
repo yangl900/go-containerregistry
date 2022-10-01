@@ -145,7 +145,10 @@ func drypullImage(w *bufio.Writer, layers *map[string]bool, maplock *sync.Mutex,
 
 	maplock.Lock()
 	defer maplock.Unlock()
-	path := fmt.Sprintf("docker/registry/v2/blobs/sha256/%s/%s", digest.Hex[:2], digest.Hex)
+	path := fmt.Sprintf("docker/registry/v2/blobs/sha256/%s/%s", manifest.Config.Digest.Hex[:2], manifest.Config.Digest.Hex)
+	w.WriteString(fmt.Sprintf("%s,%s,%s,%s\n", image, manifest.Config.Digest.Hex, manifest.Config.Digest.Hex, path))
+
+	path = fmt.Sprintf("docker/registry/v2/blobs/sha256/%s/%s", digest.Hex[:2], digest.Hex)
 	w.WriteString(fmt.Sprintf("%s,%s,%s,%s\n", image, digest.Hex, digest.Hex, path))
 	for _, l := range manifest.Layers {
 		if _, ok := (*layers)[l.Digest.String()]; ok {
